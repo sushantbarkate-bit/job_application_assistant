@@ -1,0 +1,51 @@
+profile:
+  name: Sushant Dattatraya Barkate
+  email: sushantbarkate@gmail.com
+  phone: "+91-7028319043"
+  location: Pune, Maharashtra, India
+  years_experience: 3
+  current_title: Angular Developer
+  target_titles:
+    - Angular Developer
+    - Frontend Developer
+    - Java Full Stack Developer
+  skills:
+    - Angular
+    - TypeScript
+    - JavaScript
+    - RxJS
+    - REST APIs
+    - HTML
+    - CSS
+    - Java
+    - Spring Boot
+  target_locations:
+    - Pune
+    - Remote
+    - Bengaluru,
+    - Europe
+    - Australia
+  min_salary_lpa: 15
+  resume_path: ./resume/Sushant_Barkate_Resume.pdf
+  # Add truthful profile facts only. The assistant will not invent missing answers.
+  facts:
+    notice_period: "Immediate joiner"
+    work_authorization: "India"
+    willing_to_relocate: "Ask me"
+
+search:
+  # Demo provider is offline and uses sample jobs. Add approved providers in providers.py.
+  provider: demo
+  keywords:
+    - Angular Developer
+    - Frontend Developer
+    - Java Full Stack Developer
+  max_jobs_per_run: 50
+  min_match_score: 50
+
+workflow:
+  require_approval_before_submit: true
+  daily_application_limit: 15
+  allowed_domains: [] # Populate only portals where you have confirmed automation is permitted.
+  report_dir: ./reports
+  database_path: ./data/applications.sqlite3
