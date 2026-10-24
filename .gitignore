@@ -1,7 +1,10 @@
 .env
 .venv/
 __pycache__/
-*.pyc
+*.py[cod]
+.pytest_cache/
 data/*.sqlite3
 reports/*.csv
+output/
 resume/*
+!resume/Sushant_Barkate_Resume.docx

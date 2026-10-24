@@ -11,6 +11,7 @@ LinkedIn and Naukri links are for user-driven job discovery.
 This module does not scrape their pages or bypass login/CAPTCHA.
 """
 
+import html
 import json
 import re
 import urllib.error
@@ -18,7 +19,16 @@ import urllib.parse
 import urllib.request
 from typing import Optional
 
+from .matcher import normalise_location, normalise_phrase
 from .models import Job
+
+
+def clean_description(raw: str) -> str:
+    """Turn Greenhouse's entity-escaped HTML content into plain text."""
+    text = html.unescape(raw or "")
+    text = re.sub(r"<[^>]+>", " ", text)
+    return re.sub(r"\s+", " ", html.unescape(text)).strip()
+
 
 
 class PortalSearchLinks:
@@ -117,8 +127,13 @@ class DemoProvider:
         for job in sample:
             searchable = f"{job.title} {job.description}".lower()
 
+            # Match on meaningful words rather than requiring the entire
+            # configured phrase to appear verbatim (e.g. Frontend Engineer
+            # should match the keyword Frontend Developer).
+            searchable_words = set(re.findall(r"[a-z0-9+#.]+", searchable))
             keyword_match = any(
-                term in searchable for term in keyword_terms
+                bool(set(re.findall(r"[a-z0-9+#.]+", term)) & searchable_words)
+                for term in keyword_terms
             )
 
             location_match = (
@@ -144,6 +159,11 @@ class GreenhouseProvider:
 
     Public API:
         https://boards-api.greenhouse.io/v1/boards/acme/jobs?content=true
+
+    A keyword matches when its phrase appears in the job title or
+    description (after treating "Engineer" and "Developer" as equal).
+    A location matches when a configured location appears in the job's
+    location name. Both checks are case-insensitive.
     """
 
     API_BASE = "https://boards-api.greenhouse.io/v1/boards"
@@ -206,14 +226,14 @@ class GreenhouseProvider:
 
         results = []
 
-        keyword_terms = [
-            term.lower().strip()
+        keyword_phrases = [
+            normalise_phrase(term).strip()
             for term in keywords
             if term.strip()
         ]
 
         location_terms = [
-            term.lower().strip()
+            normalise_location(term).strip()
             for term in locations
             if term.strip()
         ]
@@ -223,22 +243,29 @@ class GreenhouseProvider:
 
             for item in jobs:
                 title = item.get("title", "")
-                description = item.get("content", "")
+                description = clean_description(item.get("content", ""))
 
                 location_data = item.get("location") or {}
                 location = location_data.get("name", "Not specified")
 
-                searchable = f"{title} {description}".lower()
+                title_phrase = normalise_phrase(title)
+                description_phrase = normalise_phrase(description)
 
                 keyword_match = (
-                    not keyword_terms
-                    or any(term in searchable for term in keyword_terms)
+                    not keyword_phrases
+                    or any(
+                        f" {phrase} " in title_phrase
+                        or f" {phrase} " in description_phrase
+                        for phrase in keyword_phrases
+                    )
                 )
+
+                location_phrase = normalise_location(location)
 
                 location_match = (
                     not location_terms
                     or any(
-                        term in location.lower()
+                        f" {term} " in location_phrase
                         for term in location_terms
                     )
                 )

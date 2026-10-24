@@ -59,6 +59,8 @@ profile:
 
 
 search:
+  # Use demo for an immediate offline test. Switch to greenhouse for live
+  # jobs from the public Greenhouse boards listed below.
   provider: greenhouse
 
   keywords:
@@ -105,6 +107,9 @@ workflow:
 
   # Application reports directory
   report_dir: "./reports"
+
+  # Folder for AI drafts (tailored resumes and cover letters)
+  output_dir: "./output"
 
   # Application database
   database_path: "./data/applications.sqlite3"

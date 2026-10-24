@@ -4,11 +4,12 @@ import csv
 from .storage import Store
 
 def daily_report(store: Store, report_dir: str):
+    # Includes jobs found today and jobs whose status changed today (e.g. approved).
     rows = store.rows(since=date.today().isoformat())
     out = Path(report_dir)
     out.mkdir(parents=True, exist_ok=True)
     path = out / f"applications-{date.today().isoformat()}.csv"
-    headers = ["job_id","title","company","location","url","score","status","created_at","notes"]
+    headers = ["job_id","title","company","location","url","score","status","created_at","notes","updated_at"]
     with path.open("w", newline="", encoding="utf-8-sig") as f:
         writer = csv.writer(f)
         writer.writerow(headers)

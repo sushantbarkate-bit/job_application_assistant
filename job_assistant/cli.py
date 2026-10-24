@@ -1,5 +1,6 @@
 
 import argparse
+import re
 
 from rich.console import Console
 from rich.table import Table
@@ -13,6 +14,10 @@ from .providers import (
 from .matcher import score_job
 from .storage import Store
 from .report import daily_report
+from .ai import AIClient
+from .resume import read_resume, save_tailored_docx
+from .providers import clean_description
+from pathlib import Path
 
 
 console = Console()
@@ -75,12 +80,10 @@ def create_provider(cfg):
         )
 
 
-def show_portal_links(cfg):
+def build_portal_links(cfg):
     """
-    Generate LinkedIn and Naukri search URLs.
-
-    These URLs allow the user to open job searches.
-    They do not scrape or submit applications.
+    Build LinkedIn and Naukri search links for the sources
+    that are enabled in config.yaml (all sources if none are listed).
     """
 
     search_config = cfg["search"]
@@ -100,6 +103,34 @@ def show_portal_links(cfg):
         locations,
     )
 
+    sources = search_config.get("sources")
+
+    if sources is not None:
+        enabled = {
+            source["name"].lower()
+            for source in sources
+            if source.get("enabled", True)
+        }
+
+        links = [
+            link
+            for link in links
+            if link["source"].lower() in enabled
+        ]
+
+    return links
+
+
+def show_portal_links(cfg):
+    """
+    Generate LinkedIn and Naukri search URLs.
+
+    These URLs allow the user to open job searches.
+    They do not scrape or submit applications.
+    """
+
+    links = build_portal_links(cfg)
+
     table = Table(
         title="LinkedIn and Naukri Job Search Links"
     )
@@ -117,20 +148,26 @@ def show_portal_links(cfg):
         "Location",
     )
 
-    table.add_column(
-        "Search URL",
-    )
-
     for item in links:
 
         table.add_row(
             item["source"],
             item["keyword"],
             item["location"],
-            item["url"],
         )
 
     console.print(table)
+
+    # Print full URLs unwrapped so they can be copied from the terminal.
+    console.print("Search URLs:")
+
+    for item in links:
+
+        console.print(
+            f"{item['source']}: {item['url']}",
+            soft_wrap=True,
+            highlight=False,
+        )
 
 
 def discover_jobs(cfg, store):
@@ -340,11 +377,17 @@ def approve_job(args, store):
         "It does not submit an application."
     )
 
-    confirmation = input(
-        "\nType REVIEW to approve for manual review: "
-    ).strip()
+    try:
+        confirmation = input(
+            "\nType REVIEW to approve for manual review: "
+        ).strip()
+    except EOFError:
+        console.print(
+            "\n[yellow]No interactive input available; approval cancelled.[/yellow]"
+        )
+        return
 
-    if confirmation != "REVIEW":
+    if confirmation.upper() != "REVIEW":
 
         console.print(
             "[yellow]Approval cancelled.[/yellow]"
@@ -405,6 +448,137 @@ def generate_report(cfg, store):
         )
 
 
+def _stored_job(store, job_id):
+    """Return the stored job for job_id, or None after printing why it cannot be used."""
+
+    if not job_id:
+
+        console.print(
+            "[red]Please provide a job ID with --job-id.[/red]"
+        )
+
+        return None
+
+    job = store.job(job_id)
+
+    if not job:
+
+        console.print(
+            "[red]Job ID not found. Run discover first.[/red]"
+        )
+
+        return None
+
+    if not job["description"]:
+
+        console.print(
+            "[red]No job description stored for this job. "
+            "Run discover again to store it.[/red]"
+        )
+
+        return None
+
+    return job
+
+
+def _ai_error_message(exc):
+    """Explain common OpenAI failures in plain words."""
+
+    if "insufficient_quota" in str(exc):
+
+        return (
+            "your OpenAI account has no remaining credit. "
+            "Add billing at https://platform.openai.com/settings/organization/billing/ and try again."
+        )
+
+    return str(exc)
+
+
+def _ai_output_path(cfg, folder, job_id, suffix):
+    safe_id = re.sub(r"[^A-Za-z0-9_-]+", "_", job_id)
+
+    return Path(cfg["workflow"]["output_dir"]) / folder / f"{safe_id}{suffix}"
+
+
+def tailor_resume(cfg, store, job_id):
+    """
+    Draft a tailored resume for a stored job with OpenAI and save it as DOCX.
+
+    The draft must be checked by hand before it is used.
+    Nothing is submitted.
+    """
+
+    job = _stored_job(store, job_id)
+
+    if not job:
+        return
+
+    try:
+        resume_text = read_resume(cfg["profile"]["resume_path"])
+
+        draft = AIClient().tailor_resume_bullets(
+            resume_text,
+            f"{job['title']} at {job['company']} ({job['location']})\n{clean_description(job['description'])}",
+        )
+
+    except Exception as exc:
+
+        console.print(f"[red]Resume tailoring failed:[/red] {_ai_error_message(exc)}")
+
+        return
+
+    path = _ai_output_path(cfg, "tailored-resumes", job_id, ".docx")
+
+    save_tailored_docx(draft, str(path))
+
+    console.print(f"\n[green]Tailored resume saved:[/green] {path}")
+
+    console.print(
+        "Review every [USER VERIFY] marker and each change before using it."
+    )
+
+
+def write_cover_letter(cfg, store, job_id):
+    """
+    Draft a cover letter for a stored job with OpenAI and save it as text.
+
+    Review the draft before using it. Nothing is submitted.
+    """
+
+    job = _stored_job(store, job_id)
+
+    if not job:
+        return
+
+    try:
+        resume_text = read_resume(cfg["profile"]["resume_path"])
+
+        letter = AIClient().write_cover_letter(
+            resume_text,
+            job["title"],
+            job["company"],
+            clean_description(job["description"]),
+        )
+
+    except Exception as exc:
+
+        console.print(f"[red]Cover letter generation failed:[/red] {_ai_error_message(exc)}")
+
+        return
+
+    path = _ai_output_path(cfg, "cover-letters", job_id, ".txt")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+
+    path.write_text(letter, encoding="utf-8")
+
+    console.print(f"\n[green]Cover letter saved:[/green] {path}")
+
+    console.print(
+        "Review every [USER VERIFY] marker before using it."
+    )
+
+
 def main():
 
     parser = argparse.ArgumentParser(
@@ -417,30 +591,36 @@ def main():
         "command",
         choices=[
             "discover",
+            "daily",
             "report",
             "approve",
             "links",
+            "tailor",
+            "cover-letter",
         ],
         help=(
-            "discover jobs, generate reports, "
-            "approve jobs, or show portal links"
+            "discover jobs, run discover and report (daily), generate reports, "
+            "approve jobs, show portal links, or draft AI resume/cover letter"
         ),
     )
 
     parser.add_argument(
         "--job-id",
-        help="Job ID for the approve command",
+        help="Job ID for the approve, tailor and cover-letter commands",
     )
 
     parser.add_argument(
-        "--no-ai",
-        action="store_true",
-        help="Use deterministic matching only",
+        "--provider",
+        choices=["demo", "greenhouse"],
+        help="Override search.provider from config.yaml (demo works offline)",
     )
 
     args = parser.parse_args()
 
     cfg = load_config()
+
+    if args.provider:
+        cfg.setdefault("search", {})["provider"] = args.provider
 
     store = Store(
         cfg["workflow"]["database_path"]
@@ -468,6 +648,32 @@ def main():
 
         show_portal_links(
             cfg,
+        )
+
+        return
+
+    if args.command == "tailor":
+
+        tailor_resume(cfg, store, args.job_id)
+
+        return
+
+    if args.command == "cover-letter":
+
+        write_cover_letter(cfg, store, args.job_id)
+
+        return
+
+    if args.command == "daily":
+
+        discover_jobs(cfg, store)
+
+        show_portal_links(cfg)
+
+        generate_report(cfg, store)
+
+        console.print(
+            "\n[bold green]Daily run finished.[/bold green]"
         )
 
         return
