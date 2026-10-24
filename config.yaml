@@ -1,14 +1,26 @@
+
+# ==========================================
+# AI JOB APPLICATION ASSISTANT
+# Profile and Job Search Configuration
+# ==========================================
+
 profile:
-  name: Sushant Dattatraya Barkate
-  email: sushantbarkate@gmail.com
+  name: "Sushant Dattatraya Barkate"
+  email: "sushantbarkate@gmail.com"
   phone: "+91-7028319043"
-  location: Pune, Maharashtra, India
-  years_experience: 3
-  current_title: Angular Developer
+
+  location: "Pune, Maharashtra, India"
+
+  years_experience: 3.5
+  current_title: "Angular Developer"
+
+  # Target job positions
   target_titles:
     - Angular Developer
     - Frontend Developer
     - Java Full Stack Developer
+
+  # Skills
   skills:
     - Angular
     - TypeScript
@@ -19,33 +31,80 @@ profile:
     - CSS
     - Java
     - Spring Boot
+
+  # Target job locations
   target_locations:
     - Pune
     - Remote
-    - Bengaluru,
+    - Bengaluru
     - Europe
     - Australia
+
+  # Minimum expected annual salary in LPA
   min_salary_lpa: 15
-  resume_path: ./resume/Sushant_Barkate_Resume.pdf
-  # Add truthful profile facts only. The assistant will not invent missing answers.
+
+  # Resume file location
+  resume_path: "./resume/Sushant_Barkate_Resume.docx"
+
+  # Personal application facts
   facts:
     notice_period: "Immediate joiner"
     work_authorization: "India"
     willing_to_relocate: "Ask me"
 
+
+# ==========================================
+# JOB SEARCH CONFIGURATION
+# ==========================================
+
+
 search:
-  # Demo provider is offline and uses sample jobs. Add approved providers in providers.py.
-  provider: demo
+  provider: greenhouse
+
   keywords:
     - Angular Developer
     - Frontend Developer
     - Java Full Stack Developer
+
   max_jobs_per_run: 50
   min_match_score: 50
 
+  greenhouse_board_tokens:
+    - stripe
+    - gitlab
+    - coinbase
+
+  sources:
+    - name: LinkedIn
+      url: "https://www.linkedin.com/jobs/"
+      enabled: true
+
+    - name: Naukri
+      url: "https://www.naukri.com/"
+      enabled: true
+
+
+
+# ==========================================
+# APPLICATION WORKFLOW
+# ==========================================
+
 workflow:
+
+  # Require your approval before submission
   require_approval_before_submit: true
+
+  # Maximum intended applications per day
   daily_application_limit: 15
-  allowed_domains: [] # Populate only portals where you have confirmed automation is permitted.
-  report_dir: ./reports
-  database_path: ./data/applications.sqlite3
+
+  # Domains permitted for browser form filling
+  # This does not enable job discovery automatically
+  allowed_domains:
+    - linkedin.com
+    - naukri.com
+
+  # Application reports directory
+  report_dir: "./reports"
+
+  # Application database
+  database_path: "./data/applications.sqlite3"
